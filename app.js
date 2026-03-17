@@ -48,13 +48,6 @@ function openJournal() {
   initWbCanvas();
   loadEntries();
   listenChat();
-
-  // Check Firebase connection — shows a warning if config is wrong
-  db.ref(".info/connected").on("value", snap => {
-    if (snap.val() === false) {
-      showToast("⚠ Not connected to Firebase — check your config");
-    }
-  });
 }
 
 function closeJournal() {
@@ -141,49 +134,56 @@ function saveEntry() {
 }
 
 // ── Load Entries ──
-// Called once on open. Uses .on() so it updates in real time automatically —
-// no need to call it again after saving.
 let entriesListener = null;
 
 function loadEntries() {
   const list = document.getElementById("entriesList");
+  list.innerHTML = '<p style="font-style:italic;color:var(--ink-muted);font-size:13px;">Loading entries…</p>';
 
-  // Detach any previous listener before attaching a new one
   if (entriesListener) {
     db.ref("entries").off("value", entriesListener);
+    entriesListener = null;
   }
 
-  entriesListener = db.ref("entries").orderByChild("timestamp").limitToLast(20).on("value", snap => {
-    list.innerHTML = "";
-    const entries = [];
-    snap.forEach(child => entries.unshift({ id: child.key, ...child.val() }));
+  const query = db.ref("entries").orderByChild("timestamp").limitToLast(20);
 
-    if (entries.length === 0) {
-      list.innerHTML = '<p style="font-style:italic;color:var(--ink-muted);font-size:13px;">No entries yet — write your first one!</p>';
-      return;
-    }
+  entriesListener = query.on("value",
+    snap => {
+      list.innerHTML = "";
+      const entries = [];
+      snap.forEach(child => entries.unshift({ id: child.key, ...child.val() }));
 
-    entries.forEach(entry => {
-      const card = document.createElement("div");
-      card.className = "entry-card";
-      const date = new Date(entry.date).toLocaleDateString("en-US", {
-        month: "short", day: "numeric", year: "numeric"
+      if (entries.length === 0) {
+        list.innerHTML = '<p style="font-style:italic;color:var(--ink-muted);font-size:13px;">No entries yet — write your first one!</p>';
+        return;
+      }
+
+      entries.forEach(entry => {
+        const card = document.createElement("div");
+        card.className = "entry-card";
+        const date = new Date(entry.date).toLocaleDateString("en-US", {
+          month: "short", day: "numeric", year: "numeric"
+        });
+        const preview = entry.text
+          ? (entry.text.length > 80 ? entry.text.slice(0, 80) + "…" : entry.text)
+          : "(photos only)";
+
+        card.innerHTML = `
+          <div class="entry-card-date">${date} · by ${entry.author}</div>
+          <div class="entry-card-preview">${preview}</div>
+          ${entry.photos && entry.photos.length > 0
+            ? `<div style="font-size:11px;color:var(--ink-muted);margin-top:4px;">📷 ${entry.photos.length} photo${entry.photos.length > 1 ? "s" : ""}</div>`
+            : ""}
+        `;
+        card.onclick = () => openEntry(entry);
+        list.appendChild(card);
       });
-      const preview = entry.text
-        ? (entry.text.length > 80 ? entry.text.slice(0, 80) + "…" : entry.text)
-        : "(photos only)";
-
-      card.innerHTML = `
-        <div class="entry-card-date">${date} · by ${entry.author}</div>
-        <div class="entry-card-preview">${preview}</div>
-        ${entry.photos && entry.photos.length > 0
-          ? `<div style="font-size:11px;color:var(--ink-muted);margin-top:4px;">📷 ${entry.photos.length} photo${entry.photos.length > 1 ? "s" : ""}</div>`
-          : ""}
-      `;
-      card.onclick = () => openEntry(entry);
-      list.appendChild(card);
-    });
-  });
+    },
+    err => {
+      console.error("loadEntries error:", err);
+      list.innerHTML = '<p style="font-style:italic;color:#8b3a2a;font-size:13px;">Error loading entries: ' + err.message + '</p>';
+    }
+  );
 }
 
 // ── Open Entry Modal ──
