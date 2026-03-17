@@ -48,6 +48,13 @@ function openJournal() {
   initWbCanvas();
   loadEntries();
   listenChat();
+
+  // Check Firebase connection — shows a warning if config is wrong
+  db.ref(".info/connected").on("value", snap => {
+    if (snap.val() === false) {
+      showToast("⚠ Not connected to Firebase — check your config");
+    }
+  });
 }
 
 function closeJournal() {
@@ -86,14 +93,14 @@ function setJournalDate() {
 }
 
 // ── Save Entry ──
-// Photos are already base64 strings sitting in the DOM (from FileReader),
-// so we just grab them and push straight to the database. No Storage needed.
 function saveEntry() {
   const text = quill.getText().trim();
   const html = quill.root.innerHTML;
   const photoImgs = Array.from(document.querySelectorAll("#photoGrid .photo-item img"));
 
-  if (!text && photoImgs.length === 0) {
+  // Quill returns "<p><br></p>" even when visually empty — check plain text instead
+  const isEmpty = text.length === 0 || text === "\n";
+  if (isEmpty && photoImgs.length === 0) {
     alert("Write something first! ✨");
     return;
   }
@@ -104,11 +111,14 @@ function saveEntry() {
     if (!confirm("Your photos are quite large and may be slow to save. Continue?")) return;
   }
 
+  // Firebase can't store undefined values — filter photos array to be safe
+  const safePhotos = photos.filter(p => !!p);
+
   const entry = {
-    text,       // plain text for preview cards
-    html,       // rich HTML for full entry display
-    photos,
-    author: myUser,
+    text: text || "",
+    html: html || "",
+    photos: safePhotos,
+    author: myUser || "?",
     date: new Date().toISOString(),
     timestamp: Date.now()
   };
@@ -122,18 +132,17 @@ function saveEntry() {
       document.getElementById("audioList").innerHTML = "";
       clearJCanvas();
       document.getElementById("journalCanvasWrap").classList.add("hidden");
-      loadEntries();
       showToast("Entry saved ✦");
     })
     .catch(err => {
-      console.error(err);
-      alert("Couldn't save — check your Firebase config and internet connection.");
+      console.error("Firebase save error:", err);
+      alert("Couldn't save — error: " + err.message);
     });
 }
 
 // ── Load Entries ──
-// Uses .on() instead of .once() so the list updates in real time
-// whenever either person saves a new entry — no refresh needed.
+// Called once on open. Uses .on() so it updates in real time automatically —
+// no need to call it again after saving.
 let entriesListener = null;
 
 function loadEntries() {
