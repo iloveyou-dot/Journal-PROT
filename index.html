@@ -6,6 +6,7 @@
   <title>Our Little Journal</title>
   <link rel="stylesheet" href="style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
 </head>
 <body>
 
@@ -61,8 +62,8 @@
         <button class="save-btn" onclick="saveEntry()">Save Entry</button>
       </div>
 
-      <textarea id="journalText" class="journal-entry"
-        placeholder="Write anything here… thoughts, memories, dreams, plans…"></textarea>
+      <!-- Quill rich text editor -->
+      <div id="quill-editor"></div>
 
       <div class="journal-toolbar">
         <label class="tool-btn" for="photoInput">+ Photo</label>
@@ -152,6 +153,8 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- Quill rich text editor -->
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
   <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>

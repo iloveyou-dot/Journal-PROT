@@ -209,20 +209,95 @@ html, body {
 }
 .save-btn:hover { background: var(--accent); color: var(--paper); }
 
-.journal-entry {
-  width: 100%; min-height: 180px;
-  background: transparent; border: none;
-  border-bottom: 1px solid var(--border);
-  font-family: 'Lora', serif; font-size: 15px;
-  color: var(--ink); line-height: 2.05; resize: none; outline: none;
-  background-image: repeating-linear-gradient(
-    transparent, transparent 32px,
-    rgba(201,169,122,0.4) 32px, rgba(201,169,122,0.4) 33px
-  );
-  padding: 0 4px 8px;
+/* ── Quill rich text editor ── */
+.ql-toolbar.ql-snow {
+  border: none !important;
+  border-bottom: 1.5px solid var(--border) !important;
+  background: var(--paper-dark);
+  padding: 8px 6px;
+  flex-wrap: wrap;
+  font-family: 'Lora', serif;
 }
 
-.journal-entry::placeholder { color: var(--ink-muted); font-style: italic; }
+.ql-container.ql-snow {
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-family: 'Lora', serif;
+  font-size: 15px;
+  color: var(--ink);
+  background: transparent;
+}
+
+#quill-editor {
+  background: var(--paper);
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.ql-editor {
+  min-height: 220px;
+  line-height: 2.05;
+  padding: 12px 16px;
+  color: var(--ink) !important;
+  font-family: 'Lora', serif !important;
+  background-image: repeating-linear-gradient(
+    transparent, transparent 32px,
+    rgba(201,169,122,0.35) 32px, rgba(201,169,122,0.35) 33px
+  );
+}
+
+.ql-editor.ql-blank::before {
+  color: var(--ink-muted) !important;
+  font-style: italic !important;
+  font-family: 'Lora', serif !important;
+}
+
+.ql-snow .ql-stroke { stroke: var(--ink-muted) !important; }
+.ql-snow .ql-fill  { fill:   var(--ink-muted) !important; }
+.ql-snow .ql-picker-label { color: var(--ink-muted) !important; }
+
+.ql-snow .ql-toolbar button:hover .ql-stroke,
+.ql-snow .ql-toolbar button.ql-active .ql-stroke {
+  stroke: var(--accent) !important;
+}
+.ql-snow .ql-toolbar button:hover .ql-fill,
+.ql-snow .ql-toolbar button.ql-active .ql-fill {
+  fill: var(--accent) !important;
+}
+.ql-snow .ql-picker-label:hover,
+.ql-snow .ql-picker-item:hover {
+  color: var(--accent) !important;
+}
+
+.ql-snow .ql-picker-options {
+  background: var(--paper) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px;
+}
+
+.ql-snow .ql-tooltip {
+  background: var(--paper) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--ink) !important;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.ql-snow .ql-tooltip input[type=text] {
+  background: var(--paper-dark) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--ink) !important;
+  border-radius: 3px;
+}
+
+/* entry card rendered html */
+.entry-body { font-family: 'Lora', serif; font-size: 14px; line-height: 1.8; color: var(--ink); }
+.entry-body h1 { font-family: 'Playfair Display', serif; font-size: 20px; margin: 0.5rem 0; }
+.entry-body h2 { font-family: 'Playfair Display', serif; font-size: 17px; margin: 0.4rem 0; }
+.entry-body ul, .entry-body ol { padding-left: 1.4rem; }
+.entry-body blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--ink-muted); font-style: italic; margin: 0.5rem 0; }
 
 .journal-toolbar {
   display: flex; gap: 8px; flex-wrap: wrap; margin: 1rem 0 0.8rem;
