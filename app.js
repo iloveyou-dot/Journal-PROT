@@ -1,44 +1,42 @@
 // ══════════════════════════════════════════════════
-//  app.js — Our Little Journal
-//  Photos stored as base64 in Realtime Database.
-//  No Firebase Storage needed (free tier friendly!)
+//  app.js — Our Little Journal (clean rewrite)
 // ══════════════════════════════════════════════════
 
-// ── WHO AM I? ──
-// Two users: "H" and "S". Stored in localStorage so each
-// device remembers which person they are.
-let myUser = localStorage.getItem("journal_user");
+// ── WHO AM I ──
+var myUser = localStorage.getItem("journal_user");
 if (!myUser) {
   myUser = Math.random() < 0.5 ? "H" : "S";
   localStorage.setItem("journal_user", myUser);
 }
+console.log("I am:", myUser);
 
-const COLORS = { H: "#8b3a2a", S: "#4a6741" };
+var COLORS = { H: "#8b3a2a", S: "#4a6741" };
 
-// ── QUILL EDITOR SETUP ──
-let quill;
+// ── QUILL ──
+var quill = null;
+
 function initQuill() {
   if (quill) return;
-  quill = new Quill('#quill-editor', {
-    theme: 'snow',
-    placeholder: 'Write anything here… thoughts, memories, dreams, plans…',
+  quill = new Quill("#quill-editor", {
+    theme: "snow",
+    placeholder: "Write anything here… thoughts, memories, dreams, plans…",
     modules: {
       toolbar: [
-        [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
-        ['bold', 'italic', 'underline', 'strike'],
+        [{ font: [] }, { size: ["small", false, "large", "huge"] }],
+        ["bold", "italic", "underline", "strike"],
         [{ color: [] }, { background: [] }],
         [{ header: [1, 2, 3, false] }],
         [{ align: [] }],
-        [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
-        ['blockquote', 'code-block'],
-        ['link', 'image'],
-        ['clean']
+        [{ list: "ordered" }, { list: "bullet" }, { indent: "-1" }, { indent: "+1" }],
+        ["blockquote", "code-block"],
+        ["link", "image"],
+        ["clean"]
       ]
     }
   });
 }
 
-// ── COVER / APP TOGGLE ──
+// ── OPEN / CLOSE ──
 function openJournal() {
   document.getElementById("coverScreen").classList.add("hidden");
   document.getElementById("appScreen").classList.remove("hidden");
@@ -53,23 +51,22 @@ function openJournal() {
 function closeJournal() {
   document.getElementById("appScreen").classList.add("hidden");
   document.getElementById("coverScreen").classList.remove("hidden");
-  // Clean up real-time listeners
-  if (entriesListener) {
-    db.ref("entries").off("value", entriesListener);
-    entriesListener = null;
+  if (entriesRef) {
+    entriesRef.off("value", entriesCallback);
+    entriesRef = null;
   }
   db.ref("chat").off();
 }
 
 // ── TABS ──
 function switchTab(name, el) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".panel").forEach(p => {
+  document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
+  document.querySelectorAll(".panel").forEach(function(p) {
     p.classList.remove("active");
     p.classList.add("hidden");
   });
   el.classList.add("active");
-  const panel = document.getElementById("panel-" + name);
+  var panel = document.getElementById("panel-" + name);
   panel.classList.remove("hidden");
   panel.classList.add("active");
   if (name === "whiteboard") resizeWbCanvas();
@@ -78,163 +75,184 @@ function switchTab(name, el) {
 // ══════════════════════════════════════
 //  JOURNAL
 // ══════════════════════════════════════
+
 function setJournalDate() {
-  const d = new Date();
+  var d = new Date();
   document.getElementById("journalDate").textContent = d.toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric"
   });
 }
 
-// ── Save Entry ──
+// ── SAVE ──
 function saveEntry() {
-  const text = quill.getText().replace(/\n/g, "").trim();
-  const html = quill.root.innerHTML;
-  const photoImgs = Array.from(document.querySelectorAll("#photoGrid .photo-item img"));
-  const isEmpty = text.length === 0 && html === "<p><br></p>";
+  if (!quill) { alert("Editor not ready yet!"); return; }
 
-  if (isEmpty && photoImgs.length === 0) {
+  var rawText = quill.getText();
+  var text = rawText.replace(/\n/g, "").trim();
+  var html = quill.root.innerHTML;
+  var photoImgs = document.querySelectorAll("#photoGrid .photo-item img");
+  var photos = [];
+  for (var i = 0; i < photoImgs.length; i++) {
+    photos.push(photoImgs[i].src);
+  }
+
+  var isEmpty = (text.length === 0) && (html === "<p><br></p>") && (photos.length === 0);
+  if (isEmpty) {
     alert("Write something first! ✨");
     return;
   }
 
-  const photos = photoImgs.map(img => img.src).filter(p => !!p);
-  const totalSize = photos.reduce((sum, p) => sum + p.length, 0);
-  if (totalSize > 3_000_000) {
-    if (!confirm("Your photos are quite large and may be slow to save. Continue?")) return;
-  }
-
-  const now = Date.now();
-  const entry = {
-    text:      text || "",
-    html:      html || "",
-    photos:    photos,
-    author:    myUser || "?",
-    date:      new Date(now).toISOString(),
+  var now = Date.now();
+  var entry = {
+    text: text,
+    html: html,
+    photos: photos,
+    author: myUser,
+    date: new Date(now).toISOString(),
     timestamp: now
   };
 
-  console.log("Saving entry:", entry.author, entry.timestamp, entry.text.slice(0, 30));
+  console.log("Saving:", entry.author, entry.timestamp, text.slice(0, 30));
   showToast("Saving… ✦");
 
-  db.ref("entries").push(entry)
-    .then(ref => {
-      console.log("Saved successfully! Key:", ref.key);
-      quill.setContents([]);
-      document.getElementById("photoGrid").innerHTML = "";
-      document.getElementById("audioList").innerHTML = "";
-      clearJCanvas();
-      document.getElementById("journalCanvasWrap").classList.add("hidden");
-      showToast("Entry saved ✦");
-    })
-    .catch(err => {
-      console.error("Firebase save error:", err);
-      alert("Couldn't save — error: " + err.message);
-    });
+  db.ref("entries").push(entry).then(function(ref) {
+    console.log("Saved! Key:", ref.key);
+    quill.setContents([]);
+    document.getElementById("photoGrid").innerHTML = "";
+    document.getElementById("audioList").innerHTML = "";
+    clearJCanvas();
+    document.getElementById("journalCanvasWrap").classList.add("hidden");
+    showToast("Entry saved ✦");
+  }).catch(function(err) {
+    console.error("Save error:", err);
+    alert("Save failed: " + err.message);
+  });
 }
 
-// ── Load Entries ──
-let entriesListener = null;
+// ── LOAD ──
+var entriesRef = null;
+var entriesCallback = null;
 
 function loadEntries() {
-  const list = document.getElementById("entriesList");
-  list.innerHTML = '<p style="font-style:italic;color:var(--ink-muted);font-size:13px;">Loading entries…</p>';
+  var list = document.getElementById("entriesList");
+  list.innerHTML = "<p style='font-style:italic;color:#7a5c3e;font-size:13px;'>Loading entries…</p>";
 
-  if (entriesListener) {
-    db.ref("entries").off("value", entriesListener);
-    entriesListener = null;
+  if (entriesRef && entriesCallback) {
+    entriesRef.off("value", entriesCallback);
   }
 
-  entriesListener = db.ref("entries").on("value",
-    snap => {
-      list.innerHTML = "";
-      const entries = [];
-      snap.forEach(child => entries.push({ id: child.key, ...child.val() }));
+  entriesRef = db.ref("entries");
 
-      console.log("Loaded entries count:", entries.length);
+  entriesCallback = function(snap) {
+    console.log("Got snapshot, exists:", snap.exists(), "numChildren:", snap.numChildren());
+    list.innerHTML = "";
+    var entries = [];
 
-      if (entries.length === 0) {
-        list.innerHTML = '<p style="font-style:italic;color:var(--ink-muted);font-size:13px;">No entries yet — write your first one!</p>';
-        return;
+    snap.forEach(function(child) {
+      var val = child.val();
+      val.id = child.key;
+      entries.push(val);
+    });
+
+    if (entries.length === 0) {
+      list.innerHTML = "<p style='font-style:italic;color:#7a5c3e;font-size:13px;'>No entries yet — write your first one!</p>";
+      return;
+    }
+
+    entries.sort(function(a, b) {
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var card = document.createElement("div");
+      card.className = "entry-card";
+
+      var dateStr = "Unknown date";
+      if (entry.date) {
+        dateStr = new Date(entry.date).toLocaleDateString("en-US", {
+          month: "short", day: "numeric", year: "numeric"
+        });
       }
 
-      // Sort by timestamp descending in JS — no Firebase index needed
-      entries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      var preview = "(photos only)";
+      if (entry.text && entry.text.length > 0) {
+        preview = entry.text.length > 80 ? entry.text.slice(0, 80) + "…" : entry.text;
+      }
 
-      entries.forEach(entry => {
-        const card = document.createElement("div");
-        card.className = "entry-card";
-        const date = entry.date
-          ? new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-          : "Unknown date";
-        const preview = entry.text
-          ? (entry.text.length > 80 ? entry.text.slice(0, 80) + "…" : entry.text)
-          : "(photos only)";
+      var photoNote = "";
+      if (entry.photos && entry.photos.length > 0) {
+        photoNote = "<div style='font-size:11px;color:#7a5c3e;margin-top:4px;'>📷 " + entry.photos.length + " photo" + (entry.photos.length > 1 ? "s" : "") + "</div>";
+      }
 
-        card.innerHTML = `
-          <div class="entry-card-date">${date} · by ${entry.author || "?"}</div>
-          <div class="entry-card-preview">${preview}</div>
-          ${entry.photos && entry.photos.length > 0
-            ? `<div style="font-size:11px;color:var(--ink-muted);margin-top:4px;">📷 ${entry.photos.length} photo${entry.photos.length > 1 ? "s" : ""}</div>`
-            : ""}
-        `;
-        card.onclick = () => openEntry(entry);
-        list.appendChild(card);
-      });
-    },
-    err => {
-      console.error("loadEntries error:", err);
-      list.innerHTML = '<p style="font-style:italic;color:#8b3a2a;font-size:13px;">Error: ' + err.message + '</p>';
+      card.innerHTML =
+        "<div class='entry-card-date'>" + dateStr + " · by " + (entry.author || "?") + "</div>" +
+        "<div class='entry-card-preview'>" + preview + "</div>" +
+        photoNote;
+
+      (function(e) {
+        card.onclick = function() { openEntry(e); };
+      })(entry);
+
+      list.appendChild(card);
     }
-  );
+  };
+
+  entriesRef.on("value", entriesCallback, function(err) {
+    console.error("Load error:", err);
+    list.innerHTML = "<p style='color:#8b3a2a;font-size:13px;'>Error: " + err.message + "</p>";
+  });
 }
 
-// ── Open Entry Modal ──
+// ── OPEN ENTRY MODAL ──
 function openEntry(entry) {
-  const date = new Date(entry.date).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric"
-  });
-  let html = `<b style="font-family:'Playfair Display',serif;font-size:16px;">${date}</b>
-    <hr style="border:none;border-top:1px solid #c9a97a;margin:10px 0;">`;
+  var date = entry.date
+    ? new Date(entry.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    : "Unknown date";
 
-  // Show rich HTML if available, otherwise fall back to plain text
+  var html = "<b style=\"font-family:'Playfair Display',serif;font-size:16px;\">" + date + "</b>";
+  html += "<hr style='border:none;border-top:1px solid #c9a97a;margin:10px 0;'>";
+
   if (entry.html) {
-    html += `<div class="entry-body">${entry.html}</div>`;
+    html += "<div class='entry-body'>" + entry.html + "</div>";
   } else if (entry.text) {
-    html += `<p style="font-size:14px;line-height:1.8;white-space:pre-wrap;">${escapeHtml(entry.text)}</p>`;
+    html += "<p style='font-size:14px;line-height:1.8;white-space:pre-wrap;'>" + escapeHtml(entry.text) + "</p>";
   }
 
-  if (entry.photos && entry.photos.length) {
-    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:12px;">`;
-    entry.photos.forEach(src => {
-      html += `<img src="${src}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;border:1px solid #c9a97a;">`;
-    });
-    html += `</div>`;
+  if (entry.photos && entry.photos.length > 0) {
+    html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:12px;'>";
+    for (var i = 0; i < entry.photos.length; i++) {
+      html += "<img src='" + entry.photos[i] + "' style='width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;border:1px solid #c9a97a;'>";
+    }
+    html += "</div>";
   }
 
-  const overlay = document.createElement("div");
+  html += "<button onclick=\"document.getElementById('entry-modal').remove()\" style='margin-top:1rem;padding:6px 16px;background:#8b3a2a;color:#f5ead8;border:none;border-radius:3px;cursor:pointer;font-family:Lora,serif;font-size:12px;letter-spacing:1px;'>Close</button>";
+
+  var overlay = document.createElement("div");
+  overlay.id = "entry-modal";
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(44,31,16,0.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;";
-  const box = document.createElement("div");
-  box.style.cssText = "background:#f5ead8;border-radius:8px;border:1.5px solid #c9a97a;max-width:560px;width:100%;max-height:82vh;overflow-y:auto;padding:1.5rem;font-family:'Lora',serif;color:#3b2a1a;";
-  box.innerHTML = html + `<button onclick="this.closest('[style*=fixed]').remove()" style="margin-top:1rem;padding:6px 16px;background:#8b3a2a;color:#f5ead8;border:none;border-radius:3px;cursor:pointer;font-family:'Lora',serif;font-size:12px;letter-spacing:1px;">Close</button>`;
+
+  var box = document.createElement("div");
+  box.style.cssText = "background:#f5ead8;border-radius:8px;border:1.5px solid #c9a97a;max-width:560px;width:100%;max-height:82vh;overflow-y:auto;padding:1.5rem;font-family:Lora,serif;color:#3b2a1a;";
+  box.innerHTML = html;
+
   overlay.appendChild(box);
-  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
   document.body.appendChild(overlay);
 }
 
-// ── Photos ──
-// Uses FileReader to convert to base64, then resizes to keep files small.
+// ── PHOTOS ──
 function addPhotos(input) {
-  const grid = document.getElementById("photoGrid");
-  Array.from(input.files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      resizeImage(e.target.result, 800, dataUrl => {
-        const item = document.createElement("div");
+  var grid = document.getElementById("photoGrid");
+  var files = Array.from(input.files);
+  files.forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      resizeImage(e.target.result, 800, function(dataUrl) {
+        var item = document.createElement("div");
         item.className = "photo-item";
-        item.innerHTML = `
-          <img src="${dataUrl}" alt="photo">
-          <button class="photo-del" onclick="this.parentElement.remove()">×</button>
-        `;
+        item.innerHTML = "<img src='" + dataUrl + "' alt='photo'><button class='photo-del' onclick='this.parentElement.remove()'>×</button>";
         grid.appendChild(item);
       });
     };
@@ -243,133 +261,129 @@ function addPhotos(input) {
   input.value = "";
 }
 
-// Resize image dataURL to maxWidth, returns smaller dataURL via callback
 function resizeImage(dataUrl, maxWidth, callback) {
-  const img = new Image();
-  img.onload = () => {
-    const scale = Math.min(1, maxWidth / img.width);
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
+  var img = new Image();
+  img.onload = function() {
+    var scale = Math.min(1, maxWidth / img.width);
+    var w = Math.round(img.width * scale);
+    var h = Math.round(img.height * scale);
+    var canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
     canvas.getContext("2d").drawImage(img, 0, 0, w, h);
     callback(canvas.toDataURL("image/jpeg", 0.75));
   };
   img.src = dataUrl;
 }
 
-// ── Audio ──
-// Audio plays locally this session only — too large for Realtime DB base64.
+// ── AUDIO ──
 function addAudio(input) {
-  const file = input.files[0];
+  var file = input.files[0];
   if (!file) return;
-  const url = URL.createObjectURL(file);
-  const item = document.createElement("div");
+  var url = URL.createObjectURL(file);
+  var item = document.createElement("div");
   item.className = "audio-item";
-  item.innerHTML = `
-    <span class="audio-label">${escapeHtml(file.name)} (this session only)</span>
-    <audio controls src="${url}"></audio>
-  `;
+  item.innerHTML = "<span class='audio-label'>" + escapeHtml(file.name) + " (this session only)</span><audio controls src='" + url + "'></audio>";
   document.getElementById("audioList").appendChild(item);
   input.value = "";
 }
 
-// ── Journal mini-canvas ──
-let jDrawing = false, jLastX = 0, jLastY = 0;
-let jColor = "#3b2a1a", jInitDone = false;
+// ── JOURNAL MINI CANVAS ──
+var jDrawing = false, jLastX = 0, jLastY = 0;
+var jColor = "#3b2a1a", jInitDone = false;
 
 function toggleDraw() {
-  const wrap = document.getElementById("journalCanvasWrap");
+  var wrap = document.getElementById("journalCanvasWrap");
   wrap.classList.toggle("hidden");
   if (!jInitDone) { jInitDone = true; initJCanvas(); }
 }
 
 function initJCanvas() {
-  const canvas = document.getElementById("journal-canvas");
-  const ctx = canvas.getContext("2d");
+  var canvas = document.getElementById("journal-canvas");
+  var ctx = canvas.getContext("2d");
   ctx.lineCap = "round"; ctx.lineJoin = "round";
 
   function getPos(e) {
-    const r = canvas.getBoundingClientRect();
-    const sx = canvas.width / r.width, sy = canvas.height / r.height;
-    const src = e.touches ? e.touches[0] : e;
+    var r = canvas.getBoundingClientRect();
+    var sx = canvas.width / r.width, sy = canvas.height / r.height;
+    var src = e.touches ? e.touches[0] : e;
     return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
   }
-  canvas.addEventListener("mousedown", e => {
+
+  canvas.addEventListener("mousedown", function(e) {
     jDrawing = true;
-    const p = getPos(e); jLastX = p.x; jLastY = p.y;
+    var p = getPos(e); jLastX = p.x; jLastY = p.y;
   });
-  canvas.addEventListener("mousemove", e => {
+  canvas.addEventListener("mousemove", function(e) {
     if (!jDrawing) return;
-    const p = getPos(e);
+    var p = getPos(e);
     ctx.beginPath(); ctx.moveTo(jLastX, jLastY); ctx.lineTo(p.x, p.y);
     ctx.strokeStyle = jColor;
     ctx.lineWidth = parseInt(document.getElementById("jSizeSlider").value);
     ctx.stroke();
     jLastX = p.x; jLastY = p.y;
   });
-  canvas.addEventListener("mouseup", () => jDrawing = false);
-  canvas.addEventListener("mouseleave", () => jDrawing = false);
-  canvas.addEventListener("touchstart", e => {
+  canvas.addEventListener("mouseup", function() { jDrawing = false; });
+  canvas.addEventListener("mouseleave", function() { jDrawing = false; });
+  canvas.addEventListener("touchstart", function(e) {
     e.preventDefault(); jDrawing = true;
-    const p = getPos(e); jLastX = p.x; jLastY = p.y;
+    var p = getPos(e); jLastX = p.x; jLastY = p.y;
   }, { passive: false });
-  canvas.addEventListener("touchmove", e => {
+  canvas.addEventListener("touchmove", function(e) {
     e.preventDefault(); if (!jDrawing) return;
-    const p = getPos(e);
+    var p = getPos(e);
     ctx.beginPath(); ctx.moveTo(jLastX, jLastY); ctx.lineTo(p.x, p.y);
     ctx.strokeStyle = jColor;
     ctx.lineWidth = parseInt(document.getElementById("jSizeSlider").value);
     ctx.stroke();
     jLastX = p.x; jLastY = p.y;
   }, { passive: false });
-  canvas.addEventListener("touchend", () => jDrawing = false);
+  canvas.addEventListener("touchend", function() { jDrawing = false; });
 }
 
 function setJColor(c, el) {
   jColor = c;
-  document.querySelectorAll("#journalCanvasWrap .swatch").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll("#journalCanvasWrap .swatch").forEach(function(s) { s.classList.remove("active"); });
   if (el) el.classList.add("active");
 }
 
 function clearJCanvas() {
-  const canvas = document.getElementById("journal-canvas");
+  var canvas = document.getElementById("journal-canvas");
   canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
 }
-
 
 // ══════════════════════════════════════
 //  WHITEBOARD
 // ══════════════════════════════════════
-let wbDrawing = false, wbLastX = 0, wbLastY = 0;
-let wbStartX = 0, wbStartY = 0;
-let wbColor = "#3b2a1a", wbTool = "draw", wbSize = 4;
-let wbSnapshot = null;
+var wbDrawing = false, wbLastX = 0, wbLastY = 0;
+var wbStartX = 0, wbStartY = 0;
+var wbColor = "#3b2a1a", wbTool = "draw", wbSize = 4;
+var wbSnapshot = null;
 
 function initWbCanvas() {
-  const canvas = document.getElementById("wb-canvas");
+  var canvas = document.getElementById("wb-canvas");
   resizeWbCanvas();
 
-  const sizeSlider = document.getElementById("wbSizeSlider");
-  sizeSlider.addEventListener("input", () => {
+  var sizeSlider = document.getElementById("wbSizeSlider");
+  sizeSlider.addEventListener("input", function() {
     wbSize = parseInt(sizeSlider.value);
     document.getElementById("wbSizeVal").textContent = wbSize;
   });
 
-  const ctx = canvas.getContext("2d");
+  var ctx = canvas.getContext("2d");
   ctx.lineCap = "round"; ctx.lineJoin = "round";
 
   function getPos(e) {
-    const r = canvas.getBoundingClientRect();
-    const sx = canvas.width / r.width, sy = canvas.height / r.height;
-    const src = e.touches ? e.touches[0] : e;
+    var r = canvas.getBoundingClientRect();
+    var sx = canvas.width / r.width, sy = canvas.height / r.height;
+    var src = e.touches ? e.touches[0] : e;
     return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
   }
 
   function startDraw(e) {
     e.preventDefault();
     wbDrawing = true;
-    const p = getPos(e);
+    var p = getPos(e);
     wbLastX = p.x; wbLastY = p.y;
     wbStartX = p.x; wbStartY = p.y;
     wbSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -381,9 +395,8 @@ function initWbCanvas() {
   function duringDraw(e) {
     if (!wbDrawing) return;
     e.preventDefault();
-    const p = getPos(e);
+    var p = getPos(e);
     ctx.lineWidth = wbTool === "erase" ? wbSize * 4 : wbSize;
-
     if (wbTool === "draw") {
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = wbColor;
@@ -402,12 +415,8 @@ function initWbCanvas() {
       } else if (wbTool === "rect") {
         ctx.rect(wbStartX, wbStartY, p.x - wbStartX, p.y - wbStartY);
       } else if (wbTool === "circle") {
-        const rx = Math.abs(p.x - wbStartX) / 2, ry = Math.abs(p.y - wbStartY) / 2;
-        ctx.ellipse(
-          wbStartX + (p.x - wbStartX) / 2,
-          wbStartY + (p.y - wbStartY) / 2,
-          rx, ry, 0, 0, Math.PI * 2
-        );
+        var rx = Math.abs(p.x - wbStartX) / 2, ry = Math.abs(p.y - wbStartY) / 2;
+        ctx.ellipse(wbStartX + (p.x - wbStartX) / 2, wbStartY + (p.y - wbStartY) / 2, rx, ry, 0, 0, Math.PI * 2);
       }
       ctx.stroke();
     }
@@ -430,27 +439,27 @@ function initWbCanvas() {
 }
 
 function resizeWbCanvas() {
-  const canvas = document.getElementById("wb-canvas");
-  const wrap = canvas.parentElement;
-  const w = wrap.clientWidth || 640;
-  const h = Math.max(400, Math.round(w * 0.6));
+  var canvas = document.getElementById("wb-canvas");
+  var wrap = canvas.parentElement;
+  var w = wrap.clientWidth || 640;
+  var h = Math.max(400, Math.round(w * 0.6));
   if (canvas.width !== w || canvas.height !== h) {
-    const saved = canvas.toDataURL();
+    var saved = canvas.toDataURL();
     canvas.width = w; canvas.height = h;
-    const img = new Image();
-    img.onload = () => canvas.getContext("2d").drawImage(img, 0, 0);
+    var img = new Image();
+    img.onload = function() { canvas.getContext("2d").drawImage(img, 0, 0); };
     img.src = saved;
   }
 }
 
-window.addEventListener("resize", () => {
-  const panel = document.getElementById("panel-whiteboard");
+window.addEventListener("resize", function() {
+  var panel = document.getElementById("panel-whiteboard");
   if (!panel.classList.contains("hidden")) resizeWbCanvas();
 });
 
 function setWbTool(t, btn) {
   wbTool = t;
-  document.querySelectorAll(".wb-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".wb-btn").forEach(function(b) { b.classList.remove("active"); });
   btn.classList.add("active");
   document.getElementById("wb-canvas").style.cursor = t === "erase" ? "cell" : "crosshair";
 }
@@ -458,7 +467,7 @@ function setWbTool(t, btn) {
 function setWbColor(c, el) {
   wbColor = c;
   wbTool = "draw";
-  document.querySelectorAll("#panel-whiteboard .swatch").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll("#panel-whiteboard .swatch").forEach(function(s) { s.classList.remove("active"); });
   if (el) el.classList.add("active");
   document.getElementById("toolDraw").classList.add("active");
   document.getElementById("toolErase").classList.remove("active");
@@ -467,31 +476,31 @@ function setWbColor(c, el) {
 
 function clearWb() {
   if (!confirm("Clear the whole whiteboard? This can't be undone.")) return;
-  const canvas = document.getElementById("wb-canvas");
+  var canvas = document.getElementById("wb-canvas");
   canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
 }
 
 function saveWbImage() {
-  const canvas = document.getElementById("wb-canvas");
-  const a = document.createElement("a");
+  var canvas = document.getElementById("wb-canvas");
+  var a = document.createElement("a");
   a.download = "our-whiteboard.png";
   a.href = canvas.toDataURL("image/png");
   a.click();
 }
 
 function insertWbPhoto(input) {
-  const file = input.files[0];
+  var file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    resizeImage(e.target.result, 600, dataUrl => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.getElementById("wb-canvas");
-        const ctx = canvas.getContext("2d");
-        const maxW = canvas.width * 0.5;
-        const scale = Math.min(1, maxW / img.width);
-        const w = img.width * scale, h = img.height * scale;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    resizeImage(e.target.result, 600, function(dataUrl) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.getElementById("wb-canvas");
+        var ctx = canvas.getContext("2d");
+        var maxW = canvas.width * 0.5;
+        var scale = Math.min(1, maxW / img.width);
+        var w = img.width * scale, h = img.height * scale;
         ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
       };
       img.src = dataUrl;
@@ -501,50 +510,43 @@ function insertWbPhoto(input) {
   input.value = "";
 }
 
-
 // ══════════════════════════════════════
 //  CHAT
 // ══════════════════════════════════════
 function listenChat() {
-  const msgs = document.getElementById("chatMessages");
-  db.ref("chat").orderByChild("timestamp").limitToLast(60).on("value", snap => {
+  var msgs = document.getElementById("chatMessages");
+  db.ref("chat").orderByChild("timestamp").limitToLast(60).on("value", function(snap) {
     msgs.innerHTML = "";
-    snap.forEach(child => appendMsg(child.val(), false));
+    snap.forEach(function(child) { appendMsg(child.val(), false); });
     msgs.scrollTop = msgs.scrollHeight;
   });
 }
 
 function sendMsg() {
-  const input = document.getElementById("chatInput");
-  const text = input.value.trim();
+  var input = document.getElementById("chatInput");
+  var text = input.value.trim();
   if (!text) return;
-
   db.ref("chat").push({
-    text,
+    text: text,
     author: myUser,
     timestamp: Date.now(),
     time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
   });
-
   input.value = "";
 }
 
-function appendMsg(m, scroll = true) {
-  const msgs = document.getElementById("chatMessages");
-  const isMe = m.author === myUser;
-  const div = document.createElement("div");
+function appendMsg(m, scroll) {
+  if (scroll === undefined) scroll = true;
+  var msgs = document.getElementById("chatMessages");
+  var isMe = m.author === myUser;
+  var div = document.createElement("div");
   div.className = "msg" + (isMe ? "" : " them");
-  div.innerHTML = `
-    <div class="msg-avatar" style="background:${COLORS[m.author] || "#8b3a2a"}">${escapeHtml(m.author)}</div>
-    <div>
-      <div class="msg-bubble">${escapeHtml(m.text)}</div>
-      <div class="msg-time">${m.time || ""}</div>
-    </div>
-  `;
+  div.innerHTML =
+    "<div class='msg-avatar' style='background:" + (COLORS[m.author] || "#8b3a2a") + "'>" + escapeHtml(m.author) + "</div>" +
+    "<div><div class='msg-bubble'>" + escapeHtml(m.text) + "</div><div class='msg-time'>" + (m.time || "") + "</div></div>";
   msgs.appendChild(div);
   if (scroll) msgs.scrollTop = msgs.scrollHeight;
 }
-
 
 // ══════════════════════════════════════
 //  HELPERS
@@ -558,20 +560,16 @@ function escapeHtml(str) {
 }
 
 function showToast(msg) {
-  const existing = document.querySelector(".toast-msg");
+  var existing = document.querySelector(".toast-msg");
   if (existing) existing.remove();
-  const t = document.createElement("div");
+  var t = document.createElement("div");
   t.className = "toast-msg";
   t.textContent = msg;
-  t.style.cssText = `
-    position:fixed; bottom:2rem; left:50%; transform:translateX(-50%);
-    background:#3b2a1a; color:#f5ead8; padding:10px 22px; border-radius:20px;
-    font-family:'Lora',serif; font-size:13px; z-index:9999;
-    animation:fadeInOut 2.5s forwards; pointer-events:none;
-  `;
-  const style = document.createElement("style");
-  style.textContent = `@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(8px)} 15%{opacity:1;transform:translateX(-50%) translateY(0)} 75%{opacity:1} 100%{opacity:0}}`;
+  t.style.cssText = "position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:#3b2a1a;color:#f5ead8;padding:10px 22px;border-radius:20px;font-family:Lora,serif;font-size:13px;z-index:9999;pointer-events:none;";
+  t.style.animation = "fadeInOut 2.5s forwards";
+  var style = document.createElement("style");
+  style.textContent = "@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(8px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}75%{opacity:1}100%{opacity:0}}";
   document.head.appendChild(style);
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2600);
+  setTimeout(function() { t.remove(); }, 2600);
 }
