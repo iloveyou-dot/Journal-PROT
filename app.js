@@ -612,8 +612,8 @@ function sendMsg() {
   var msg = {
     text: text,
     author: myUser,
-    timestamp: Date.now(),
-    time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    timestamp: Date.now()
+    // no 'time' field — each client formats from timestamp in their own timezone
   };
 
   // attach reply if one is set
@@ -663,7 +663,7 @@ function appendMsg(key, m, scroll) {
     "<div class='msg-content'>" +
       replyHtml +
       "<div class='msg-bubble'>" + escapeHtml(m.text) + "</div>" +
-      "<div class='msg-time'>" + (m.time || "") + "</div>" +
+      "<div class='msg-time'>" + (m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }) : "") + "</div>" +
       reactionsHtml +
       actionsHtml +
     "</div>";
