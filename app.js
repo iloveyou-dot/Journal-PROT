@@ -587,13 +587,19 @@ function insertWbPhoto(input) {
 }
 
 // ══════════════════════════════════════
-//  CHAT
+//  CHAT — with reactions + replies
 // ══════════════════════════════════════
+
+var replyingTo = null; // holds the message being replied to
+var EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👏"];
+
 function listenChat() {
   var msgs = document.getElementById("chatMessages");
   db.ref("chat").orderByChild("timestamp").limitToLast(60).on("value", function(snap) {
     msgs.innerHTML = "";
-    snap.forEach(function(child) { appendMsg(child.val(), false); });
+    snap.forEach(function(child) {
+      appendMsg(child.key, child.val(), false);
+    });
     msgs.scrollTop = msgs.scrollHeight;
   });
 }
@@ -602,26 +608,145 @@ function sendMsg() {
   var input = document.getElementById("chatInput");
   var text = input.value.trim();
   if (!text) return;
-  db.ref("chat").push({
+
+  var msg = {
     text: text,
     author: myUser,
     timestamp: Date.now(),
     time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-  });
+  };
+
+  // attach reply if one is set
+  if (replyingTo) {
+    msg.replyTo = {
+      text: replyingTo.text,
+      author: replyingTo.author
+    };
+  }
+
+  db.ref("chat").push(msg);
   input.value = "";
+  clearReply();
 }
 
-function appendMsg(m, scroll) {
+function appendMsg(key, m, scroll) {
   if (scroll === undefined) scroll = true;
   var msgs = document.getElementById("chatMessages");
   var isMe = m.author === myUser;
+
   var div = document.createElement("div");
   div.className = "msg" + (isMe ? "" : " them");
+  div.setAttribute("data-key", key);
+
+  // reply preview
+  var replyHtml = "";
+  if (m.replyTo) {
+    replyHtml =
+      "<div class='msg-reply-preview'>" +
+        "<span class='msg-reply-author'>" + escapeHtml(m.replyTo.author) + "</span>" +
+        "<span class='msg-reply-text'>" + escapeHtml(m.replyTo.text.slice(0, 60)) + (m.replyTo.text.length > 60 ? "…" : "") + "</span>" +
+      "</div>";
+  }
+
+  // reactions display
+  var reactionsHtml = buildReactionsHtml(key, m.reactions);
+
+  // action buttons (reply + react)
+  var actionsHtml =
+    "<div class='msg-actions'>" +
+      "<button class='msg-action-btn' onclick='startReply(\"" + key + "\", \"" + escapeHtml(m.author) + "\", \"" + escapeHtml(m.text.replace(/"/g, "&quot;")) + "\")'>↩ Reply</button>" +
+      "<button class='msg-action-btn' onclick='toggleEmojiPicker(\"" + key + "\", this)'>😊</button>" +
+    "</div>";
+
   div.innerHTML =
     "<div class='msg-avatar' style='background:" + (COLORS[m.author] || "#8b3a2a") + "'>" + escapeHtml(m.author) + "</div>" +
-    "<div><div class='msg-bubble'>" + escapeHtml(m.text) + "</div><div class='msg-time'>" + (m.time || "") + "</div></div>";
+    "<div class='msg-content'>" +
+      replyHtml +
+      "<div class='msg-bubble'>" + escapeHtml(m.text) + "</div>" +
+      "<div class='msg-time'>" + (m.time || "") + "</div>" +
+      reactionsHtml +
+      actionsHtml +
+    "</div>";
+
   msgs.appendChild(div);
   if (scroll) msgs.scrollTop = msgs.scrollHeight;
+}
+
+function buildReactionsHtml(key, reactions) {
+  if (!reactions) return "";
+  var counts = {};
+  var myReaction = null;
+  Object.keys(reactions).forEach(function(user) {
+    var emoji = reactions[user];
+    counts[emoji] = (counts[emoji] || 0) + 1;
+    if (user === myUser) myReaction = emoji;
+  });
+  var html = "<div class='msg-reactions'>";
+  Object.keys(counts).forEach(function(emoji) {
+    var active = myReaction === emoji ? " active" : "";
+    html += "<span class='reaction-pill" + active + "' onclick='toggleReaction(\"" + key + "\", \"" + emoji + "\")'>" + emoji + " " + counts[emoji] + "</span>";
+  });
+  html += "</div>";
+  return html;
+}
+
+function toggleEmojiPicker(msgKey, btn) {
+  // close any open picker first
+  var existing = document.querySelector(".emoji-picker");
+  if (existing) {
+    existing.remove();
+    if (existing.getAttribute("data-key") === msgKey) return;
+  }
+
+  var picker = document.createElement("div");
+  picker.className = "emoji-picker";
+  picker.setAttribute("data-key", msgKey);
+  EMOJIS.forEach(function(emoji) {
+    var span = document.createElement("span");
+    span.textContent = emoji;
+    span.onclick = function() {
+      toggleReaction(msgKey, emoji);
+      picker.remove();
+    };
+    picker.appendChild(span);
+  });
+
+  btn.parentElement.appendChild(picker);
+
+  // close on outside click
+  setTimeout(function() {
+    document.addEventListener("click", function handler(e) {
+      if (!picker.contains(e.target) && e.target !== btn) {
+        picker.remove();
+        document.removeEventListener("click", handler);
+      }
+    });
+  }, 10);
+}
+
+function toggleReaction(msgKey, emoji) {
+  var ref = db.ref("chat/" + msgKey + "/reactions/" + myUser);
+  ref.once("value", function(snap) {
+    if (snap.val() === emoji) {
+      ref.remove(); // toggle off same emoji
+    } else {
+      ref.set(emoji);
+    }
+  });
+}
+
+function startReply(key, author, text) {
+  replyingTo = { key: key, author: author, text: text };
+  var bar = document.getElementById("replyBar");
+  document.getElementById("replyAuthor").textContent = author;
+  document.getElementById("replyText").textContent = text.slice(0, 60) + (text.length > 60 ? "…" : "");
+  bar.classList.remove("hidden");
+  document.getElementById("chatInput").focus();
+}
+
+function clearReply() {
+  replyingTo = null;
+  document.getElementById("replyBar").classList.add("hidden");
 }
 
 // ══════════════════════════════════════
