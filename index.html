@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Little Journal</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ══════════════ BOOK COVER ══════════════ -->
+  <div id="coverScreen" class="cover-screen">
+    <div class="book-cover" id="bookCover">
+      <div class="cover-spine"></div>
+      <div class="cover-texture"></div>
+      <div class="cover-inner">
+        <div class="cover-ornament">✦</div>
+        <h1 class="cover-title">Our Little Journal</h1>
+        <p class="cover-subtitle">a shared space for two</p>
+        <div class="cover-divider"></div>
+        <div class="cover-illustration">
+          <svg width="100%" height="100%" viewBox="0 0 300 140" xmlns="http://www.w3.org/2000/svg">
+            <rect width="300" height="140" fill="#ede0c8"/>
+            <ellipse cx="150" cy="100" rx="90" ry="55" fill="#c9a97a" opacity="0.3"/>
+            <path d="M60 90 Q80 60 100 75 Q120 50 140 68 Q160 45 180 62 Q200 50 220 70 Q240 60 255 80"
+              stroke="#8b3a2a" stroke-width="1.5" fill="none" opacity="0.5"/>
+            <circle cx="150" cy="55" r="28" fill="none" stroke="#8b3a2a" stroke-width="1" opacity="0.4"/>
+            <path d="M136 55 Q142 42 150 40 Q158 42 164 55 Q158 68 150 70 Q142 68 136 55Z"
+              fill="#8b3a2a" opacity="0.25"/>
+            <text x="150" y="120" text-anchor="middle" font-family="Georgia,serif"
+              font-size="10" fill="#7a5c3e" font-style="italic" opacity="0.7">— est. 2025 —</text>
+          </svg>
+        </div>
+        <p class="cover-names">For the two of you</p>
+        <p class="cover-year">2 0 2 5</p>
+        <button class="open-btn" onclick="openJournal()">Open Journal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MAIN APP ══════════════ -->
+  <div id="appScreen" class="app-screen hidden">
+
+    <header class="app-header">
+      <button class="back-btn" onclick="closeJournal()">✦ Close</button>
+      <span class="app-title">Our Little Journal</span>
+      <span class="user-badge" id="userBadge"></span>
+    </header>
+
+    <nav class="tab-bar">
+      <button class="tab active" data-tab="journal" onclick="switchTab('journal', this)">Journal</button>
+      <button class="tab" data-tab="whiteboard" onclick="switchTab('whiteboard', this)">Whiteboard</button>
+      <button class="tab" data-tab="chat" onclick="switchTab('chat', this)">Chat</button>
+    </nav>
+
+    <!-- ── JOURNAL ── -->
+    <section id="panel-journal" class="panel active">
+      <div class="journal-header">
+        <span class="journal-date" id="journalDate"></span>
+        <button class="save-btn" onclick="saveEntry()">Save Entry</button>
+      </div>
+
+      <textarea id="journalText" class="journal-entry"
+        placeholder="Write anything here… thoughts, memories, dreams, plans…"></textarea>
+
+      <div class="journal-toolbar">
+        <label class="tool-btn" for="photoInput">+ Photo</label>
+        <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="addPhotos(this)">
+        <button class="tool-btn" onclick="toggleDraw()">+ Draw</button>
+        <label class="tool-btn" for="audioInput">+ Audio</label>
+        <input type="file" id="audioInput" accept="audio/*" style="display:none" onchange="addAudio(this)">
+      </div>
+
+      <!-- Mini draw canvas inside journal -->
+      <div id="journalCanvasWrap" class="journal-canvas-wrap hidden">
+        <canvas id="journal-canvas" width="600" height="200"></canvas>
+        <div class="mini-tools">
+          <div class="color-swatches">
+            <div class="swatch active" style="background:#3b2a1a" onclick="setJColor('#3b2a1a',this)"></div>
+            <div class="swatch" style="background:#8b3a2a" onclick="setJColor('#8b3a2a',this)"></div>
+            <div class="swatch" style="background:#4a6741" onclick="setJColor('#4a6741',this)"></div>
+            <div class="swatch" style="background:#4a6b8a" onclick="setJColor('#4a6b8a',this)"></div>
+          </div>
+          <input type="range" class="size-slider" min="2" max="16" value="3" id="jSizeSlider">
+          <button class="tool-btn small" onclick="clearJCanvas()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Photo grid -->
+      <div class="photo-grid" id="photoGrid"></div>
+
+      <!-- Audio clips -->
+      <div id="audioList" class="audio-list"></div>
+
+      <!-- Saved entries -->
+      <div class="entries-section">
+        <h3 class="entries-heading">Past Entries</h3>
+        <div id="entriesList" class="entries-list"></div>
+      </div>
+    </section>
+
+    <!-- ── WHITEBOARD ── -->
+    <section id="panel-whiteboard" class="panel hidden">
+      <div class="wb-tools">
+        <button class="wb-btn active" id="toolDraw" onclick="setWbTool('draw',this)">Draw</button>
+        <button class="wb-btn" id="toolLine" onclick="setWbTool('line',this)">Line</button>
+        <button class="wb-btn" id="toolRect" onclick="setWbTool('rect',this)">Rect</button>
+        <button class="wb-btn" id="toolCircle" onclick="setWbTool('circle',this)">Circle</button>
+        <button class="wb-btn" id="toolErase" onclick="setWbTool('erase',this)">Erase</button>
+        <button class="wb-btn" onclick="clearWb()">Clear All</button>
+        <button class="wb-btn" onclick="saveWbImage()">Save PNG</button>
+        <label class="wb-btn" for="wbPhotoInput">Insert Photo</label>
+        <input type="file" id="wbPhotoInput" accept="image/*" style="display:none" onchange="insertWbPhoto(this)">
+      </div>
+      <div class="wb-tools row2">
+        <div class="color-swatches">
+          <div class="swatch active" style="background:#3b2a1a" onclick="setWbColor('#3b2a1a',this)"></div>
+          <div class="swatch" style="background:#8b3a2a" onclick="setWbColor('#8b3a2a',this)"></div>
+          <div class="swatch" style="background:#4a6741" onclick="setWbColor('#4a6741',this)"></div>
+          <div class="swatch" style="background:#4a6b8a" onclick="setWbColor('#4a6b8a',this)"></div>
+          <div class="swatch" style="background:#8a6b2a" onclick="setWbColor('#8a6b2a',this)"></div>
+          <div class="swatch" style="background:#a04070" onclick="setWbColor('#a04070',this)"></div>
+          <div class="swatch" style="background:#c9a97a" onclick="setWbColor('#c9a97a',this)"></div>
+          <div class="swatch" style="background:#e8d5b7" onclick="setWbColor('#e8d5b7',this)"></div>
+          <input type="color" id="customColor" style="width:22px;height:22px;border-radius:50%;border:2px solid #c9a97a;cursor:pointer;padding:0;" onchange="setWbColor(this.value, null)">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:#7a5c3e;font-family:'Lora',serif;">Size</span>
+          <input type="range" class="size-slider" min="1" max="30" value="4" id="wbSizeSlider">
+          <span id="wbSizeVal" style="font-size:11px;color:#7a5c3e;font-family:'Lora',serif;">4</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="wb-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- ── CHAT ── -->
+    <section id="panel-chat" class="panel hidden">
+      <p class="chat-info">just the two of you · private</p>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chatInput" placeholder="Write a message…"
+          onkeydown="if(event.key==='Enter')sendMsg()">
+        <button class="send-btn" onclick="sendMsg()">Send</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
