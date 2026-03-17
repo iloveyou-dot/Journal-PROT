@@ -4,13 +4,11 @@
 
 // ── WHO AM I ──
 var myUser = localStorage.getItem("journal_user");
-if (!myUser) {
-  myUser = Math.random() < 0.5 ? "H" : "S";
-  localStorage.setItem("journal_user", myUser);
-}
-console.log("I am:", myUser);
+// Always show picker so they can switch if needed
+myUser = null;
+localStorage.removeItem("journal_user");
 
-var COLORS = { H: "#8b3a2a", S: "#4a6741" };
+var COLORS = { J: "#8b3a2a", Z: "#4a6741" };
 
 // ── QUILL ──
 var quill = null;
@@ -38,9 +36,78 @@ function initQuill() {
 
 // ── OPEN / CLOSE ──
 function openJournal() {
+  showPinScreen();
+}
+
+function showPinScreen() {
+  var overlay = document.createElement("div");
+  overlay.id = "pin-screen";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(44,31,16,0.92);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;";
+
+  overlay.innerHTML =
+    "<div style='background:#f5ead8;border-radius:12px;border:1.5px solid #c9a97a;padding:2rem;max-width:320px;width:100%;text-align:center;font-family:Lora,serif;color:#3b2a1a;'>" +
+      "<div style='font-size:24px;color:#8b3a2a;margin-bottom:0.5rem;'>✦</div>" +
+      "<p style='font-family:Playfair Display,serif;font-size:18px;font-style:italic;margin-bottom:0.3rem;'>Our Little Journal</p>" +
+      "<p style='font-size:12px;color:#7a5c3e;letter-spacing:2px;text-transform:uppercase;margin-bottom:1.5rem;'>Enter PIN to continue</p>" +
+      "<input id='pinInput' type='password' maxlength='4' placeholder='· · · ·' style='width:100%;padding:10px;text-align:center;font-size:22px;letter-spacing:8px;border:1.5px solid #c9a97a;border-radius:6px;background:#ede0c8;color:#3b2a1a;outline:none;margin-bottom:1rem;font-family:Lora,serif;'>" +
+      "<p id='pinError' style='font-size:12px;color:#8b3a2a;min-height:18px;margin-bottom:0.8rem;'></p>" +
+      "<button onclick='checkPin()' style='width:100%;padding:10px;background:#8b3a2a;color:#f5ead8;border:none;border-radius:6px;font-family:Lora,serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;'>Enter</button>" +
+    "</div>";
+
+  document.body.appendChild(overlay);
+  document.getElementById("pinInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") checkPin();
+  });
+  setTimeout(function() { document.getElementById("pinInput").focus(); }, 100);
+}
+
+var PIN = "1234"; // ← Change this to your own PIN!
+
+function checkPin() {
+  var input = document.getElementById("pinInput").value.trim();
+  if (input === PIN) {
+    document.getElementById("pin-screen").remove();
+    showUserPicker();
+  } else {
+    document.getElementById("pinError").textContent = "Wrong PIN, try again ✦";
+    document.getElementById("pinInput").value = "";
+    document.getElementById("pinInput").focus();
+  }
+}
+
+function showUserPicker() {
+  var saved = localStorage.getItem("journal_user");
+
+  var overlay = document.createElement("div");
+  overlay.id = "user-picker";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(44,31,16,0.92);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;";
+
+  overlay.innerHTML =
+    "<div style='background:#f5ead8;border-radius:12px;border:1.5px solid #c9a97a;padding:2rem;max-width:320px;width:100%;text-align:center;font-family:Lora,serif;color:#3b2a1a;'>" +
+      "<div style='font-size:24px;color:#8b3a2a;margin-bottom:0.5rem;'>✦</div>" +
+      "<p style='font-family:Playfair Display,serif;font-size:18px;font-style:italic;margin-bottom:0.3rem;'>Who are you?</p>" +
+      "<p style='font-size:12px;color:#7a5c3e;letter-spacing:1px;margin-bottom:1.5rem;'>Choose your initial</p>" +
+      "<div style='display:flex;gap:1rem;justify-content:center;'>" +
+        "<button onclick='pickUser(\"J\")' style='flex:1;padding:1.2rem;background:" + (saved === "J" ? "#8b3a2a" : "#ede0c8") + ";color:" + (saved === "J" ? "#f5ead8" : "#3b2a1a") + ";border:1.5px solid #c9a97a;border-radius:8px;font-family:Playfair Display,serif;font-size:28px;cursor:pointer;transition:all 0.2s;'>J</button>" +
+        "<button onclick='pickUser(\"Z\")' style='flex:1;padding:1.2rem;background:" + (saved === "Z" ? "#4a6741" : "#ede0c8") + ";color:" + (saved === "Z" ? "#f5ead8" : "#3b2a1a") + ";border:1.5px solid #c9a97a;border-radius:8px;font-family:Playfair Display,serif;font-size:28px;cursor:pointer;transition:all 0.2s;'>Z</button>" +
+      "</div>" +
+    "</div>";
+
+  document.body.appendChild(overlay);
+}
+
+function pickUser(user) {
+  myUser = user;
+  localStorage.setItem("journal_user", user);
+  document.getElementById("user-picker").remove();
+  launchJournal();
+}
+
+function launchJournal() {
   document.getElementById("coverScreen").classList.add("hidden");
   document.getElementById("appScreen").classList.remove("hidden");
   document.getElementById("userBadge").textContent = "You are: " + myUser;
+  document.getElementById("userBadge").style.color = COLORS[myUser] || "#7a5c3e";
   setJournalDate();
   initQuill();
   initWbCanvas();
@@ -222,7 +289,7 @@ function openEntry(entry) {
   if (entry.photos && entry.photos.length > 0) {
     html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:12px;'>";
     for (var i = 0; i < entry.photos.length; i++) {
-      html += "<img src='" + entry.photos[i] + "' style='width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;border:1px solid #c9a97a;'>";
+      html += "<img src='" + entry.photos[i] + "' onclick='openLightbox(this.src)' style='width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;border:1px solid #c9a97a;cursor:zoom-in;'>";
     }
     html += "</div>";
   }
@@ -239,6 +306,15 @@ function openEntry(entry) {
 
   overlay.appendChild(box);
   overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+// ── PHOTO LIGHTBOX ──
+function openLightbox(src) {
+  var overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:3000;display:flex;align-items:center;justify-content:center;cursor:zoom-out;";
+  overlay.innerHTML = "<img src='" + src + "' style='max-width:92vw;max-height:92vh;border-radius:4px;object-fit:contain;box-shadow:0 4px 40px rgba(0,0,0,0.5);'>";
+  overlay.onclick = function() { overlay.remove(); };
   document.body.appendChild(overlay);
 }
 
