@@ -141,6 +141,13 @@
     <section id="panel-chat" class="panel hidden">
       <p class="chat-info">just the two of you · private</p>
       <div class="chat-messages" id="chatMessages"></div>
+      <div id="replyBar" class="reply-bar hidden">
+        <div class="reply-bar-inner">
+          <span class="reply-bar-label">Replying to <b id="replyAuthor"></b>:</span>
+          <span id="replyText" class="reply-bar-text"></span>
+        </div>
+        <button class="reply-bar-close" onclick="clearReply()">×</button>
+      </div>
       <div class="chat-input-row">
         <input class="chat-input" id="chatInput" placeholder="Write a message…"
           onkeydown="if(event.key==='Enter')sendMsg()">
