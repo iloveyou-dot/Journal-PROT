@@ -87,39 +87,38 @@ function setJournalDate() {
 
 // ── Save Entry ──
 function saveEntry() {
-  const text = quill.getText().trim();
+  const text = quill.getText().replace(/\n/g, "").trim();
   const html = quill.root.innerHTML;
   const photoImgs = Array.from(document.querySelectorAll("#photoGrid .photo-item img"));
+  const isEmpty = text.length === 0 && html === "<p><br></p>";
 
-  // Quill returns "<p><br></p>" even when visually empty — check plain text instead
-  const isEmpty = text.length === 0 || text === "\n";
   if (isEmpty && photoImgs.length === 0) {
     alert("Write something first! ✨");
     return;
   }
 
-  const photos = photoImgs.map(img => img.src);
+  const photos = photoImgs.map(img => img.src).filter(p => !!p);
   const totalSize = photos.reduce((sum, p) => sum + p.length, 0);
   if (totalSize > 3_000_000) {
     if (!confirm("Your photos are quite large and may be slow to save. Continue?")) return;
   }
 
-  // Firebase can't store undefined values — filter photos array to be safe
-  const safePhotos = photos.filter(p => !!p);
-
+  const now = Date.now();
   const entry = {
-    text: text || "",
-    html: html || "",
-    photos: safePhotos,
-    author: myUser || "?",
-    date: new Date().toISOString(),
-    timestamp: Date.now()
+    text:      text || "",
+    html:      html || "",
+    photos:    photos,
+    author:    myUser || "?",
+    date:      new Date(now).toISOString(),
+    timestamp: now
   };
 
+  console.log("Saving entry:", entry.author, entry.timestamp, entry.text.slice(0, 30));
   showToast("Saving… ✦");
 
   db.ref("entries").push(entry)
-    .then(() => {
+    .then(ref => {
+      console.log("Saved successfully! Key:", ref.key);
       quill.setContents([]);
       document.getElementById("photoGrid").innerHTML = "";
       document.getElementById("audioList").innerHTML = "";
@@ -145,31 +144,34 @@ function loadEntries() {
     entriesListener = null;
   }
 
-  const query = db.ref("entries").orderByChild("timestamp").limitToLast(20);
-
-  entriesListener = query.on("value",
+  entriesListener = db.ref("entries").on("value",
     snap => {
       list.innerHTML = "";
       const entries = [];
-      snap.forEach(child => entries.unshift({ id: child.key, ...child.val() }));
+      snap.forEach(child => entries.push({ id: child.key, ...child.val() }));
+
+      console.log("Loaded entries count:", entries.length);
 
       if (entries.length === 0) {
         list.innerHTML = '<p style="font-style:italic;color:var(--ink-muted);font-size:13px;">No entries yet — write your first one!</p>';
         return;
       }
 
+      // Sort by timestamp descending in JS — no Firebase index needed
+      entries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
       entries.forEach(entry => {
         const card = document.createElement("div");
         card.className = "entry-card";
-        const date = new Date(entry.date).toLocaleDateString("en-US", {
-          month: "short", day: "numeric", year: "numeric"
-        });
+        const date = entry.date
+          ? new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : "Unknown date";
         const preview = entry.text
           ? (entry.text.length > 80 ? entry.text.slice(0, 80) + "…" : entry.text)
           : "(photos only)";
 
         card.innerHTML = `
-          <div class="entry-card-date">${date} · by ${entry.author}</div>
+          <div class="entry-card-date">${date} · by ${entry.author || "?"}</div>
           <div class="entry-card-preview">${preview}</div>
           ${entry.photos && entry.photos.length > 0
             ? `<div style="font-size:11px;color:var(--ink-muted);margin-top:4px;">📷 ${entry.photos.length} photo${entry.photos.length > 1 ? "s" : ""}</div>`
@@ -181,7 +183,7 @@ function loadEntries() {
     },
     err => {
       console.error("loadEntries error:", err);
-      list.innerHTML = '<p style="font-style:italic;color:#8b3a2a;font-size:13px;">Error loading entries: ' + err.message + '</p>';
+      list.innerHTML = '<p style="font-style:italic;color:#8b3a2a;font-size:13px;">Error: ' + err.message + '</p>';
     }
   );
 }
