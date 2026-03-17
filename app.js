@@ -15,12 +15,36 @@ if (!myUser) {
 
 const COLORS = { H: "#8b3a2a", S: "#4a6741" };
 
+// ── QUILL EDITOR SETUP ──
+let quill;
+function initQuill() {
+  if (quill) return;
+  quill = new Quill('#quill-editor', {
+    theme: 'snow',
+    placeholder: 'Write anything here… thoughts, memories, dreams, plans…',
+    modules: {
+      toolbar: [
+        [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ color: [] }, { background: [] }],
+        [{ header: [1, 2, 3, false] }],
+        [{ align: [] }],
+        [{ list: 'ordered' }, { list: 'bullet' }, { indent: '-1' }, { indent: '+1' }],
+        ['blockquote', 'code-block'],
+        ['link', 'image'],
+        ['clean']
+      ]
+    }
+  });
+}
+
 // ── COVER / APP TOGGLE ──
 function openJournal() {
   document.getElementById("coverScreen").classList.add("hidden");
   document.getElementById("appScreen").classList.remove("hidden");
   document.getElementById("userBadge").textContent = "You are: " + myUser;
   setJournalDate();
+  initQuill();
   initWbCanvas();
   loadEntries();
   listenChat();
@@ -29,6 +53,12 @@ function openJournal() {
 function closeJournal() {
   document.getElementById("appScreen").classList.add("hidden");
   document.getElementById("coverScreen").classList.remove("hidden");
+  // Clean up real-time listeners
+  if (entriesListener) {
+    db.ref("entries").off("value", entriesListener);
+    entriesListener = null;
+  }
+  db.ref("chat").off();
 }
 
 // ── TABS ──
@@ -59,7 +89,8 @@ function setJournalDate() {
 // Photos are already base64 strings sitting in the DOM (from FileReader),
 // so we just grab them and push straight to the database. No Storage needed.
 function saveEntry() {
-  const text = document.getElementById("journalText").value.trim();
+  const text = quill.getText().trim();
+  const html = quill.root.innerHTML;
   const photoImgs = Array.from(document.querySelectorAll("#photoGrid .photo-item img"));
 
   if (!text && photoImgs.length === 0) {
@@ -67,14 +98,15 @@ function saveEntry() {
     return;
   }
 
-  const photos = photoImgs.map(img => img.src); // already base64
+  const photos = photoImgs.map(img => img.src);
   const totalSize = photos.reduce((sum, p) => sum + p.length, 0);
   if (totalSize > 3_000_000) {
     if (!confirm("Your photos are quite large and may be slow to save. Continue?")) return;
   }
 
   const entry = {
-    text,
+    text,       // plain text for preview cards
+    html,       // rich HTML for full entry display
     photos,
     author: myUser,
     date: new Date().toISOString(),
@@ -85,7 +117,7 @@ function saveEntry() {
 
   db.ref("entries").push(entry)
     .then(() => {
-      document.getElementById("journalText").value = "";
+      quill.setContents([]);
       document.getElementById("photoGrid").innerHTML = "";
       document.getElementById("audioList").innerHTML = "";
       clearJCanvas();
@@ -100,9 +132,19 @@ function saveEntry() {
 }
 
 // ── Load Entries ──
+// Uses .on() instead of .once() so the list updates in real time
+// whenever either person saves a new entry — no refresh needed.
+let entriesListener = null;
+
 function loadEntries() {
-  db.ref("entries").orderByChild("timestamp").limitToLast(20).once("value", snap => {
-    const list = document.getElementById("entriesList");
+  const list = document.getElementById("entriesList");
+
+  // Detach any previous listener before attaching a new one
+  if (entriesListener) {
+    db.ref("entries").off("value", entriesListener);
+  }
+
+  entriesListener = db.ref("entries").orderByChild("timestamp").limitToLast(20).on("value", snap => {
     list.innerHTML = "";
     const entries = [];
     snap.forEach(child => entries.unshift({ id: child.key, ...child.val() }));
@@ -140,11 +182,16 @@ function openEntry(entry) {
   const date = new Date(entry.date).toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric"
   });
-  let html = `<b style="font-family:'Playfair Display',serif;">${date}</b>
+  let html = `<b style="font-family:'Playfair Display',serif;font-size:16px;">${date}</b>
     <hr style="border:none;border-top:1px solid #c9a97a;margin:10px 0;">`;
-  if (entry.text) {
+
+  // Show rich HTML if available, otherwise fall back to plain text
+  if (entry.html) {
+    html += `<div class="entry-body">${entry.html}</div>`;
+  } else if (entry.text) {
     html += `<p style="font-size:14px;line-height:1.8;white-space:pre-wrap;">${escapeHtml(entry.text)}</p>`;
   }
+
   if (entry.photos && entry.photos.length) {
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:12px;">`;
     entry.photos.forEach(src => {
@@ -156,7 +203,7 @@ function openEntry(entry) {
   const overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(44,31,16,0.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;";
   const box = document.createElement("div");
-  box.style.cssText = "background:#f5ead8;border-radius:8px;border:1.5px solid #c9a97a;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;padding:1.5rem;font-family:'Lora',serif;color:#3b2a1a;";
+  box.style.cssText = "background:#f5ead8;border-radius:8px;border:1.5px solid #c9a97a;max-width:560px;width:100%;max-height:82vh;overflow-y:auto;padding:1.5rem;font-family:'Lora',serif;color:#3b2a1a;";
   box.innerHTML = html + `<button onclick="this.closest('[style*=fixed]').remove()" style="margin-top:1rem;padding:6px 16px;background:#8b3a2a;color:#f5ead8;border:none;border-radius:3px;cursor:pointer;font-family:'Lora',serif;font-size:12px;letter-spacing:1px;">Close</button>`;
   overlay.appendChild(box);
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
