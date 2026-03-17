@@ -12,13 +12,14 @@
 // ══════════════════════════════════════════════════
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyAC0HKyxeVtMJyDrRD80sJ5daxB9Wki034",
-  authDomain:        "journal-3ab2e.firebaseapp.com",
-  databaseURL:       "https://journal-3ab2e-default-rtdb.firebaseio.com",
-  projectId:         "journal-3ab2e",
-  storageBucket:     "journal-3ab2e.firebasestorage.app",
+  apiKey: "AIzaSyAC0HKyxeVtMJyDrRD80sJ5daxB9Wki034",
+  authDomain: "journal-3ab2e.firebaseapp.com",
+  databaseURL: "https://journal-3ab2e-default-rtdb.firebaseio.com",
+  projectId: "journal-3ab2e",
+  storageBucket: "journal-3ab2e.firebasestorage.app",
   messagingSenderId: "730082324401",
-  appId:             "1:730082324401:web:bc4e1efd11d73fd064d790"
+  appId: "1:730082324401:web:bc4e1efd11d73fd064d790",
+  measurementId: "G-2GFK4SJQ5E"
 };
 
 firebase.initializeApp(firebaseConfig);
