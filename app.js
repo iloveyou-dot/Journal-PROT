@@ -61,7 +61,7 @@ function showPinScreen() {
   setTimeout(function() { document.getElementById("pinInput").focus(); }, 100);
 }
 
-var PIN = "1234"; // ← Change this to your own PIN!
+var PIN = "0523"; // ← Change this to your own PIN!
 
 function checkPin() {
   var input = document.getElementById("pinInput").value.trim();
