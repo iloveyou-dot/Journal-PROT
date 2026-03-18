@@ -52,6 +52,7 @@
     <nav class="tab-bar">
       <button class="tab active" data-tab="journal" onclick="switchTab('journal', this)">Journal</button>
       <button class="tab" data-tab="whiteboard" onclick="switchTab('whiteboard', this)">Whiteboard</button>
+      <button class="tab" data-tab="gallery" onclick="switchTab('gallery', this)">Gallery</button>
       <button class="tab" data-tab="chat" onclick="switchTab('chat', this)">Chat</button>
     </nav>
 
@@ -135,6 +136,16 @@
       <div class="canvas-wrap">
         <canvas id="wb-canvas"></canvas>
       </div>
+    </section>
+
+    <!-- ── GALLERY ── -->
+    <section id="panel-gallery" class="panel hidden">
+      <div class="gallery-header">
+        <h2 class="gallery-title">Our Gallery</h2>
+        <button class="save-btn" onclick="addGalleryItem()">+ Add Page</button>
+      </div>
+      <div id="galleryPages" class="gallery-pages"></div>
+      <div class="gallery-pagination" id="galleryPagination"></div>
     </section>
 
     <!-- ── CHAT ── -->
