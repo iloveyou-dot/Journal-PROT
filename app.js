@@ -61,7 +61,7 @@ function showPinScreen() {
   setTimeout(function() { document.getElementById("pinInput").focus(); }, 100);
 }
 
-var PIN = "0523"; // ← Change this to your own PIN!
+var PIN = "1234"; // ← Change this to your own PIN!
 
 function checkPin() {
   var input = document.getElementById("pinInput").value.trim();
@@ -112,6 +112,7 @@ function launchJournal() {
   initQuill();
   initWbCanvas();
   loadEntries();
+  loadGallery();
   listenChat();
 }
 
@@ -121,6 +122,10 @@ function closeJournal() {
   if (entriesRef) {
     entriesRef.off("value", entriesCallback);
     entriesRef = null;
+  }
+  if (galleryListener) {
+    db.ref("gallery").off("value", galleryListener);
+    galleryListener = null;
   }
   db.ref("chat").off();
 }
@@ -750,8 +755,190 @@ function clearReply() {
 }
 
 // ══════════════════════════════════════
-//  HELPERS
+//  GALLERY
 // ══════════════════════════════════════
+var GALLERY_PER_PAGE = 4; // items per page
+var galleryCurrentPage = 1;
+var galleryData = []; // local cache
+var galleryListener = null;
+
+function loadGallery() {
+  if (galleryListener) {
+    db.ref("gallery").off("value", galleryListener);
+  }
+  galleryListener = db.ref("gallery").on("value", function(snap) {
+    galleryData = [];
+    snap.forEach(function(child) {
+      var val = child.val();
+      val.id = child.key;
+      galleryData.push(val);
+    });
+    galleryData.sort(function(a, b) { return (a.order || 0) - (b.order || 0); });
+    renderGallery();
+  });
+}
+
+function renderGallery() {
+  var pages = document.getElementById("galleryPages");
+  var pagination = document.getElementById("galleryPagination");
+  pages.innerHTML = "";
+
+  var totalPages = Math.max(1, Math.ceil(galleryData.length / GALLERY_PER_PAGE));
+  if (galleryCurrentPage > totalPages) galleryCurrentPage = totalPages;
+
+  var start = (galleryCurrentPage - 1) * GALLERY_PER_PAGE;
+  var pageItems = galleryData.slice(start, start + GALLERY_PER_PAGE);
+
+  if (galleryData.length === 0) {
+    pages.innerHTML = "<p style='font-style:italic;color:var(--ink-muted);font-size:13px;text-align:center;padding:2rem 0;'>No pages yet — click + Add Page to start your gallery!</p>";
+  } else {
+    pageItems.forEach(function(item, idx) {
+      var globalIdx = start + idx;
+      var isReverse = globalIdx % 2 !== 0;
+      var el = buildGalleryItem(item, isReverse);
+      pages.appendChild(el);
+    });
+  }
+
+  // pagination
+  pagination.innerHTML = "";
+  if (totalPages <= 1) return;
+
+  var prevBtn = document.createElement("button");
+  prevBtn.className = "page-nav-btn";
+  prevBtn.textContent = "← Prev";
+  prevBtn.disabled = galleryCurrentPage === 1;
+  prevBtn.onclick = function() { galleryCurrentPage--; renderGallery(); };
+  pagination.appendChild(prevBtn);
+
+  for (var i = 1; i <= totalPages; i++) {
+    (function(pg) {
+      var btn = document.createElement("button");
+      btn.className = "page-btn" + (pg === galleryCurrentPage ? " active" : "");
+      btn.textContent = pg;
+      btn.onclick = function() { galleryCurrentPage = pg; renderGallery(); };
+      pagination.appendChild(btn);
+    })(i);
+  }
+
+  var nextBtn = document.createElement("button");
+  nextBtn.className = "page-nav-btn";
+  nextBtn.textContent = "Next →";
+  nextBtn.disabled = galleryCurrentPage === totalPages;
+  nextBtn.onclick = function() { galleryCurrentPage++; renderGallery(); };
+  pagination.appendChild(nextBtn);
+}
+
+function buildGalleryItem(item, isReverse) {
+  var div = document.createElement("div");
+  div.className = "gallery-item" + (isReverse ? " reverse" : "");
+  div.setAttribute("data-id", item.id);
+
+  // image side
+  var imgWrap = document.createElement("div");
+  imgWrap.className = "gallery-img-wrap";
+
+  if (item.photo) {
+    var img = document.createElement("img");
+    img.src = item.photo;
+    img.alt = "gallery photo";
+    img.onclick = function() { openLightbox(item.photo); };
+    imgWrap.appendChild(img);
+
+    // change photo button
+    var changeBtn = document.createElement("label");
+    changeBtn.style.cssText = "display:block;margin-top:6px;text-align:center;font-size:11px;color:var(--ink-muted);cursor:pointer;letter-spacing:1px;text-transform:uppercase;font-family:'Lora',serif;";
+    changeBtn.textContent = "Change photo";
+    var fileInput = document.createElement("input");
+    fileInput.type = "file"; fileInput.accept = "image/*";
+    fileInput.style.display = "none";
+    fileInput.onchange = function() { uploadGalleryPhoto(item.id, fileInput); };
+    changeBtn.appendChild(fileInput);
+    imgWrap.appendChild(changeBtn);
+  } else {
+    var placeholder = document.createElement("div");
+    placeholder.className = "gallery-img-placeholder";
+    placeholder.innerHTML = "<span>+</span><p>Add a photo</p>";
+    var fileInput2 = document.createElement("input");
+    fileInput2.type = "file"; fileInput2.accept = "image/*";
+    fileInput2.style.cssText = "position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;";
+    fileInput2.onchange = function() { uploadGalleryPhoto(item.id, fileInput2); };
+    placeholder.style.position = "relative";
+    placeholder.appendChild(fileInput2);
+    imgWrap.appendChild(placeholder);
+  }
+
+  // text side
+  var textWrap = document.createElement("div");
+  textWrap.className = "gallery-text-wrap";
+
+  var textarea = document.createElement("textarea");
+  textarea.className = "gallery-caption";
+  textarea.placeholder = "Write something about this moment…";
+  textarea.value = item.caption || "";
+
+  var actions = document.createElement("div");
+  actions.className = "gallery-item-actions";
+
+  var saveBtn = document.createElement("button");
+  saveBtn.className = "gallery-save-btn";
+  saveBtn.textContent = "Save";
+  saveBtn.onclick = function() { saveGalleryCaption(item.id, textarea.value); };
+
+  var delBtn = document.createElement("button");
+  delBtn.className = "gallery-del-btn";
+  delBtn.textContent = "Delete";
+  delBtn.onclick = function() { deleteGalleryItem(item.id); };
+
+  actions.appendChild(saveBtn);
+  actions.appendChild(delBtn);
+  textWrap.appendChild(textarea);
+  textWrap.appendChild(actions);
+
+  div.appendChild(imgWrap);
+  div.appendChild(textWrap);
+  return div;
+}
+
+function addGalleryItem() {
+  var order = galleryData.length;
+  db.ref("gallery").push({
+    photo: null,
+    caption: "",
+    order: order,
+    createdBy: myUser,
+    timestamp: Date.now()
+  }).then(function() {
+    // jump to last page to see new item
+    galleryCurrentPage = Math.ceil((galleryData.length + 1) / GALLERY_PER_PAGE);
+  });
+}
+
+function uploadGalleryPhoto(id, input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    resizeImage(e.target.result, 800, function(dataUrl) {
+      db.ref("gallery/" + id + "/photo").set(dataUrl).then(function() {
+        showToast("Photo saved ✦");
+      });
+    });
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function saveGalleryCaption(id, text) {
+  db.ref("gallery/" + id + "/caption").set(text).then(function() {
+    showToast("Saved ✦");
+  });
+}
+
+function deleteGalleryItem(id) {
+  if (!confirm("Delete this gallery page?")) return;
+  db.ref("gallery/" + id).remove();
+}
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
