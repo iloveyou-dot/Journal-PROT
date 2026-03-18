@@ -577,7 +577,126 @@ html, body {
 }
 .send-btn:hover { background: #7a2e1e; }
 
-/* ══ RESPONSIVE ══ */
+/* ══ GALLERY ══ */
+.gallery-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.gallery-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-style: italic; color: var(--ink);
+  font-weight: 400;
+}
+
+.gallery-pages { display: flex; flex-direction: column; gap: 2.5rem; }
+
+/* each scrapbook row */
+.gallery-item {
+  display: flex; gap: 1.4rem; align-items: flex-start;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.gallery-item.reverse { flex-direction: row-reverse; }
+
+.gallery-item:last-child { border-bottom: none; }
+
+/* image side */
+.gallery-img-wrap {
+  flex-shrink: 0; width: 220px; position: relative;
+}
+
+.gallery-img-wrap img {
+  width: 100%; border-radius: 4px;
+  border: 1.5px solid var(--border);
+  object-fit: cover;
+  box-shadow: 3px 3px 0 var(--border);
+  cursor: zoom-in;
+  display: block;
+}
+
+.gallery-img-placeholder {
+  width: 100%; aspect-ratio: 4/3;
+  border: 2px dashed var(--border); border-radius: 4px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px; cursor: pointer;
+  background: var(--paper-dark);
+  transition: all 0.15s;
+}
+.gallery-img-placeholder:hover { border-color: var(--accent2); background: var(--paper-mid); }
+.gallery-img-placeholder span { font-size: 24px; color: var(--border); }
+.gallery-img-placeholder p { font-size: 11px; color: var(--ink-muted); letter-spacing: 1px; text-transform: uppercase; }
+
+/* text side */
+.gallery-text-wrap { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+
+.gallery-caption {
+  width: 100%; min-height: 120px;
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Lora', serif; font-size: 14px;
+  color: var(--ink); line-height: 1.9; resize: none; outline: none;
+  background-image: repeating-linear-gradient(
+    transparent, transparent 30px,
+    rgba(201,169,122,0.3) 30px, rgba(201,169,122,0.3) 31px
+  );
+  padding: 0 4px 6px;
+}
+.gallery-caption::placeholder { color: var(--ink-muted); font-style: italic; }
+
+.gallery-item-actions {
+  display: flex; gap: 6px; margin-top: 4px;
+}
+
+.gallery-save-btn {
+  padding: 4px 12px; font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; font-family: 'Lora', serif;
+  border: 1px solid var(--accent2); border-radius: 3px;
+  background: transparent; color: var(--accent2); cursor: pointer;
+}
+.gallery-save-btn:hover { background: var(--accent2); color: var(--paper); }
+
+.gallery-del-btn {
+  padding: 4px 12px; font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; font-family: 'Lora', serif;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: transparent; color: var(--ink-muted); cursor: pointer;
+}
+.gallery-del-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* pagination */
+.gallery-pagination {
+  display: flex; justify-content: center; align-items: center;
+  gap: 8px; margin-top: 1.5rem; flex-wrap: wrap;
+}
+
+.page-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--border); background: transparent;
+  font-family: 'Lora', serif; font-size: 13px;
+  color: var(--ink-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.page-btn:hover { background: var(--paper-dark); color: var(--ink); }
+.page-btn.active { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+.page-nav-btn {
+  padding: 4px 12px; font-size: 12px;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: transparent; color: var(--ink-muted);
+  font-family: 'Lora', serif; cursor: pointer;
+}
+.page-nav-btn:hover { background: var(--paper-dark); color: var(--ink); }
+.page-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+@media (max-width: 600px) {
+  .gallery-item, .gallery-item.reverse { flex-direction: column; }
+  .gallery-img-wrap { width: 100%; }
+}
 @media (max-width: 600px) {
   .cover-title { font-size: 24px; }
   .panel { padding: 1rem; }
